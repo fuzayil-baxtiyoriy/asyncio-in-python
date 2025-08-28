@@ -1,6 +1,8 @@
 import asyncio
-import aiohttp
 import os
+import aiohttp
+import uuid
+import time
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 from PIL import Image
@@ -19,14 +21,29 @@ urls = [
     'https://picsum.photos/id/2/400/300',
     'https://picsum.photos/id/14/500/500',
     'https://picsum.photos/id/110/800/600',
-    'https://picsum.photos/id/116/1200/800'
+    'https://picsum.photos/id/116/1200/800',
+    'https://picsum.photos/id/2/400/300',
+    'https://picsum.photos/id/14/500/500',
+    'https://picsum.photos/id/110/800/600',
+    'https://picsum.photos/id/116/1200/800',
+    'https://picsum.photos/id/2/400/300',
+    'https://picsum.photos/id/14/500/500',
+    'https://picsum.photos/id/110/800/600',
+    'https://picsum.photos/id/116/1200/800',
+    'https://picsum.photos/id/2/400/300',
+    'https://picsum.photos/id/14/500/500',
+    'https://picsum.photos/id/110/800/600',
+    'https://picsum.photos/id/116/1200/800',
+    'https://picsum.photos/id/2/400/300',
+ 
 ]
 
 # I/O-bound: Download images
-async def download_image(session, url, idx):
+async def download_image(session, url):
     try:
         async with session.get(url) as response:
             data = await response.read()
+            idx = uuid.uuid4().hex
             filepath = IMAGES_DIR / f"image_{idx}.jpg"
             with open(filepath, "wb") as f:
                 f.write(data)
@@ -38,7 +55,7 @@ async def download_image(session, url, idx):
 
 async def download_all(urls):
     async with aiohttp.ClientSession() as session:
-        tasks = [download_image(session, url, idx) for idx, url in enumerate(urls)]
+        tasks = [download_image(session, url) for url in urls]
         return await asyncio.gather(*tasks)
 
 
@@ -55,22 +72,20 @@ def resize_image(filepath, size=(200, 200)):
         print(f"Error resizing {filepath}: {e}")
         return None
 
-async def resize_all(filepaths):
+# Parallel (with ProcessPoolExecutor)
+async def resize_all_parallel(filepaths):
     loop = asyncio.get_running_loop()
     with ProcessPoolExecutor() as pool:
-        tasks = [loop.run_in_executor(pool, resize_image, filepath) for filepath in filepaths if filepath]
+        tasks = [loop.run_in_executor(pool, resize_image, fp) for fp in filepaths if fp]
         return await asyncio.gather(*tasks)
+    
 
+# Sequential (blocking)
+async def resize_all_sequential(filepaths):
+    results = []
+    for fp in filepaths:
+        resized_img = resize_image(fp)
+        if resized_img:
+            results.append(resized_img)
+    return results
 
-async def main():
-    print("📥 Downloading images...")
-    downloaded_files = await download_all(urls)
-    print("📏 Resizing images...")
-    resized_files = await resize_all(downloaded_files)
-
-    print("\n✅ Done!")
-    print("Resized images:", resized_files)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
